@@ -4,11 +4,12 @@ A full-stack, enterprise-grade Insurance Management System built for robust DBMS
 
 ---
 
-## 🌐 Live Cloud Deployment
+## 🌐 Live Production Deployment
+* **Live Web Application (Vercel)**: [**`https://insurance-management-system-mu.vercel.app/login`**](https://insurance-management-system-mu.vercel.app/login)
 * **Backend API (Render)**: [`https://insurance-management-system-vylp.onrender.com`](https://insurance-management-system-vylp.onrender.com)
 * **API Health Check**: [`https://insurance-management-system-vylp.onrender.com/`](https://insurance-management-system-vylp.onrender.com/)
 * **Cloud Database Engine**: PostgreSQL 16 on **[Neon.tech](https://neon.tech)** (Serverless Cloud DB with Connection Pooling)
-* **Frontend Hosting**: Optimized for **[Vercel](https://vercel.com)** / **Render Static Sites** with SPA rewrite routing rules included (`vercel.json` & `_redirects`).
+* **Architecture**: React 19 + Vite (Frontend) $\leftrightarrow$ Node.js / Express 5 (Backend) $\leftrightarrow$ Neon PostgreSQL (Database)
 
 ---
 
@@ -410,7 +411,8 @@ The system is architected for zero-cost, high-performance cloud deployment acros
 4. Add Environment Variable:
    * **Key:** `VITE_API_URL`
    * **Value:** `https://insurance-management-system-vylp.onrender.com/api`
-5. Click **Deploy**. Vercel will output your public shareable website link!
+5. Click **Deploy**.
+6. **Live Production URL**: [**`https://insurance-management-system-mu.vercel.app/login`**](https://insurance-management-system-mu.vercel.app/login)
 
 ---
 
