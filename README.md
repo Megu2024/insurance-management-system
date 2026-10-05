@@ -4,19 +4,28 @@ A full-stack, enterprise-grade Insurance Management System built for robust DBMS
 
 ---
 
+## 🌐 Live Cloud Deployment
+* **Backend API (Render)**: [`https://insurance-management-system-vylp.onrender.com`](https://insurance-management-system-vylp.onrender.com)
+* **API Health Check**: [`https://insurance-management-system-vylp.onrender.com/`](https://insurance-management-system-vylp.onrender.com/)
+* **Cloud Database Engine**: PostgreSQL 16 on **[Neon.tech](https://neon.tech)** (Serverless Cloud DB with Connection Pooling)
+* **Frontend Hosting**: Optimized for **[Vercel](https://vercel.com)** / **Render Static Sites** with SPA rewrite routing rules included (`vercel.json` & `_redirects`).
+
+---
+
 ## 📑 Table of Contents
-1. [System Overview & Architecture](#-system-overview--architecture)
-2. [Key Capabilities & Features](#-key-capabilities--features)
-3. [Technology Stack](#-technology-stack)
-4. [Relational Database Design (DBMS)](#-relational-database-design-dbms)
-5. [Role-Based Access Control & Approval Workflows](#-role-based-access-control--approval-workflows)
-6. [Project Structure](#-project-structure)
-7. [Installation & Setup Guide](#-installation--setup-guide)
-8. [Database Seeding & Admin Account](#-database-seeding--admin-account)
-9. [Running the Application](#-running-the-application)
-10. [Automated Testing](#-automated-testing)
-11. [Deployment Readiness](#-deployment-readiness)
-12. [API Reference Summary](#-api-reference-summary)
+1. [Live Cloud Deployment](#-live-cloud-deployment)
+2. [System Overview & Architecture](#-system-overview--architecture)
+3. [Key Capabilities & Features](#-key-capabilities--features)
+4. [Technology Stack](#-technology-stack)
+5. [Relational Database Design (DBMS)](#-relational-database-design-dbms)
+6. [Role-Based Access Control & Approval Workflows](#-role-based-access-control--approval-workflows)
+7. [Project Structure](#-project-structure)
+8. [Installation & Setup Guide](#-installation--setup-guide)
+9. [Database Seeding & Default Credentials](#-database-seeding--default-credentials)
+10. [Running the Application](#-running-the-application)
+11. [Automated Testing](#-automated-testing)
+12. [Cloud Deployment Guide (Neon, Render, Vercel)](#-cloud-deployment-guide-neon-render-vercel)
+13. [API Reference Summary](#-api-reference-summary)
 
 ---
 
@@ -299,41 +308,40 @@ VITE_API_URL=http://localhost:5000/api
 
 ---
 
-## 🔑 Database Seeding & Admin Account
+## 🔑 Database Seeding & Default Credentials
 
-The Administrator account is created **programmatically** without manual SQL queries. Passwords are salted and hashed using `bcrypt` (10 rounds).
+The database initialization and administrator setup run programmatically without manual SQL editing. Passwords are salted and hashed using `bcrypt` (10 rounds).
 
-### Run the Admin Seeder:
+### Run Database Initialization:
 ```bash
 cd backend
-npm run seed-admin
+npm run init-db
 ```
-- This script reads `ADMIN_EMAIL` and `ADMIN_PASSWORD` from `.env`.
+- Sets up all sequence starts, column defaults, cascading foreign keys (`ON DELETE SET NULL`), and schema verification.
 - **Idempotent**: If the admin account already exists, it safely skips creation and reports that the account is active.
 
-### Default Demo Credentials
-For testing and demonstration, you can log in directly with:
-- **System Admin**: `admin@insurance.com` / `Admin@123456`
-- **Customer**: `rahul@gmail.com` / `Password@123`
-- **Agent**: `priya@insurance.com` / `Password@123`
-- **Surveyor**: `arun@insurance.com` / `Password@123`
-
-*(The login screen also provides 1-click credential auto-fill buttons for quick grading/evaluation).*
+### Default Credentials
+| Role | Email / Username | Password | Notes |
+|:---|:---|:---|:---|
+| **System Administrator** | `admin@insurance.com` *(or `admin`)* | `Admin@123456` | Full platform access & approval dashboard |
+| **Insurance Agent** | `priya@insurance.com` | `Password@123` | Official License: `LIC-AGT-724190` (Chennai Main Branch) |
+| **Field Surveyor** | `arun@insurance.com` | `Password@123` | Official License: `LIC-SUR-519283` (8 Yrs Experience) |
+| **Registered Customer** | `megarajan2026@gmail.com` | `Password@123` | Customer ID `#115` (Megarajan P N) |
 
 ---
 
-## 💻 Running the Application
+## 💻 Running the Application Locally
 
-### Start Backend Server
+### 1. Start Backend Server
 ```bash
 cd backend
-npm run dev   # Uses nodemon for hot-reloading
+npm run dev   # Uses nodemon for hot-reloading on port 5000
 # OR
 npm start     # Production start
 ```
 *Backend runs on `http://localhost:5000`.*
 
-### Start Frontend Server
+### 2. Start Frontend Server
 ```bash
 cd frontend
 npm run dev
@@ -357,31 +365,52 @@ node scripts/testE2eFlow.js
 - [x] Agent registration sets account to `PENDING`
 - [x] Pending agent is blocked from logging in with an approval pending warning
 - [x] Admin approval dashboard retrieves pending agents
-- [x] Admin approves pending agent
+- [x] Admin approves pending agent and automatically issues official license (`LIC-AGT-XXXXXX`)
 - [x] Approved agent logs in successfully
 - [x] Surveyor registration, pending status check, admin approval, and approved login
 - [x] Real PostgreSQL aggregations from `/api/dashboard/stats`
 - [x] Customer data ownership isolation (Customer cannot fetch another customer's record)
 - [x] Policy, branch, and policy-type CRUD retrieval
+- [x] Safe branch deletion unlinking assigned agents (`ON DELETE SET NULL`)
 
 ---
 
-## 📦 Deployment Readiness
+## 🚀 Cloud Deployment Guide (Neon, Render, Vercel)
 
-### Frontend Production Build
-To create an optimized production build:
-```bash
-cd frontend
-npm run build
-```
-- Production output will be generated in `frontend/dist/`.
-- Frontend API calls dynamically respect `VITE_API_URL`. To connect to a deployed cloud server, simply update `VITE_API_URL=https://api.yourdomain.com/api`.
+The system is architected for zero-cost, high-performance cloud deployment across three dedicated tiers:
 
-### Production Backend Start
-```bash
-cd backend
-npm start
-```
+### 1. Cloud Database (Neon Serverless PostgreSQL)
+1. Sign up on **[Neon.tech](https://neon.tech)** and create a new project named `insurance-db`.
+2. Open the Neon **SQL Editor**, paste the contents of [`database/schema.sql`](database/schema.sql), and click **Run**.
+3. Copy your project connection string (`DATABASE_URL`):
+   ```text
+   postgresql://neondb_owner:<password>@ep-<project-id>-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require
+   ```
+
+### 2. Backend Web Service (Render)
+1. Sign in to **[Render.com](https://render.com)** $\rightarrow$ **New +** $\rightarrow$ **Web Service**.
+2. Connect your GitHub repository (`insurance-management-system`).
+3. Set the following build options:
+   * **Root Directory:** `backend`
+   * **Build Command:** `npm install`
+   * **Start Command:** `npm start`
+   * **Instance Type:** `Free`
+4. Add the Environment Variables:
+   * `DATABASE_URL`: *(Your Neon PostgreSQL connection string)*
+   * `JWT_SECRET`: `insurance_management_jwt_secret_key_2026_super_secure`
+   * `ADMIN_EMAIL`: `admin@insurance.com`
+   * `ADMIN_PASSWORD`: `Admin@123456`
+   * `PORT`: `5000`
+5. Click **Deploy Web Service** to receive your live API URL (e.g. `https://insurance-management-system-vylp.onrender.com`).
+
+### 3. Frontend Static Application (Vercel)
+1. Sign in to **[Vercel.com](https://vercel.com)** $\rightarrow$ **Add New...** $\rightarrow$ **Project**.
+2. Import the repository and select **Root Directory:** `frontend`.
+3. Framework Preset: `Vite`.
+4. Add Environment Variable:
+   * **Key:** `VITE_API_URL`
+   * **Value:** `https://insurance-management-system-vylp.onrender.com/api`
+5. Click **Deploy**. Vercel will output your public shareable website link!
 
 ---
 
