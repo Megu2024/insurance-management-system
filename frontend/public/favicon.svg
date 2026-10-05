@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <defs>
+    <linearGradient id="sureGuardGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6" />
+      <stop offset="40%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#1d4ed8" />
+    </linearGradient>
+    <linearGradient id="shieldFill" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.18" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.04" />
+    </linearGradient>
+  </defs>
+
+  <!-- Modern App Icon Container -->
+  <rect x="2" y="2" width="44" height="44" rx="10" fill="url(#sureGuardGrad)" />
+  <rect x="2" y="2" width="44" height="44" rx="10" fill="none" stroke="#93c5fd" stroke-width="1" stroke-opacity="0.5" />
+
+  <!-- Shield Shape with Semi-Transparent Glass Fill -->
+  <g transform="translate(12, 12)">
+    <path
+      d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"
+      fill="url(#shieldFill)"
+      stroke="#ffffff"
+      stroke-width="2.2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <!-- Checkmark inside Shield -->
+    <path
+      d="m9 12 2 2 4-4"
+      fill="none"
+      stroke="#ffffff"
+      stroke-width="2.6"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+  </g>
+</svg>

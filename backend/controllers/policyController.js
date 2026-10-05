@@ -1,8 +1,10 @@
 const pool = require("../db");
 
+// Get single policy with joined information
 const getPolicyById = async (req, res) => {
     try {
         const policyId = req.params.id;
+        const user = req.user;
 
         const result = await pool.query(
             `SELECT
@@ -38,7 +40,7 @@ const getPolicyById = async (req, res) => {
              INNER JOIN policy_type pt
                 ON p.policy_type_id = pt.policy_type_id
 
-             INNER JOIN agent a
+             LEFT JOIN agent a
                 ON p.agent_id = a.agent_id
 
              WHERE p.policy_id = $1`,
@@ -51,7 +53,27 @@ const getPolicyById = async (req, res) => {
             });
         }
 
-        res.json(result.rows[0]);
+        const policy = result.rows[0];
+
+        // Ownership check for customers
+        if (user && user.role === "CUSTOMER" && user.customer_id && policy.customer_id !== user.customer_id) {
+            return res.status(403).json({ error: "Access denied. You can only view your own policies." });
+        }
+
+        // Fetch related asset/nominee info in parallel
+        const [vehicles, properties, businesses, nominees] = await Promise.all([
+            pool.query("SELECT * FROM vehicle WHERE policy_id = $1", [policyId]),
+            pool.query("SELECT * FROM property WHERE policy_id = $1", [policyId]),
+            pool.query("SELECT * FROM business WHERE policy_id = $1", [policyId]),
+            pool.query("SELECT * FROM nominee WHERE policy_id = $1", [policyId])
+        ]);
+
+        policy.vehicle = vehicles.rows[0] || null;
+        policy.property = properties.rows[0] || null;
+        policy.business = businesses.rows[0] || null;
+        policy.nominees = nominees.rows;
+
+        res.json(policy);
 
     } catch (err) {
         console.error("Error fetching policy:", err.message);
@@ -76,7 +98,7 @@ const getPolicyPayments = async (req, res) => {
                 payment_status
              FROM premium_payment
              WHERE policy_id = $1
-             ORDER BY payment_date`,
+             ORDER BY payment_date DESC`,
             [policyId]
         );
 
@@ -97,17 +119,19 @@ const getPolicyClaims = async (req, res) => {
 
         const result = await pool.query(
             `SELECT
-                claim_id,
-                policy_id,
-                claim_date,
-                claim_amount,
-                claim_status,
-                description,
-                surveyor_id,
-                approve_amt
-             FROM claim
-             WHERE policy_id = $1
-             ORDER BY claim_date`,
+                c.claim_id,
+                c.policy_id,
+                c.claim_date,
+                c.claim_amount,
+                c.claim_status,
+                c.description,
+                c.surveyor_id,
+                c.approve_amt,
+                s.surveyor_name
+             FROM claim c
+             LEFT JOIN surveyor s ON c.surveyor_id = s.surveyor_id
+             WHERE c.policy_id = $1
+             ORDER BY c.claim_date DESC`,
             [policyId]
         );
 
@@ -242,8 +266,11 @@ const getPolicyNominees = async (req, res) => {
 
 const getPolicies = async (req, res) => {
     try {
-        const result = await pool.query(
-            `SELECT
+        const { status, customer_id, policy_type_id, agent_id, search } = req.query;
+        const user = req.user;
+
+        let query = `
+            SELECT
                 p.policy_id,
                 p.policy_no,
                 p.start_date,
@@ -256,6 +283,7 @@ const getPolicies = async (req, res) => {
 
                 c.customer_id,
                 c.first_name || ' ' || c.last_name AS customer_name,
+                c.email AS customer_email,
 
                 pt.policy_type_id,
                 pt.policy_name,
@@ -272,11 +300,51 @@ const getPolicies = async (req, res) => {
              INNER JOIN policy_type pt
                 ON p.policy_type_id = pt.policy_type_id
 
-             INNER JOIN agent a
+             LEFT JOIN agent a
                 ON p.agent_id = a.agent_id
 
-             ORDER BY p.policy_id`
-        );
+             WHERE 1=1
+        `;
+
+        const params = [];
+
+        // Role-based restrictions
+        if (user && user.role === "CUSTOMER" && user.customer_id) {
+            params.push(user.customer_id);
+            query += ` AND p.customer_id = $${params.length}`;
+        } else if (user && user.role === "AGENT" && user.agent_id) {
+            params.push(user.agent_id);
+            query += ` AND p.agent_id = $${params.length}`;
+        }
+
+        if (status) {
+            params.push(status);
+            query += ` AND LOWER(p.policy_status) = LOWER($${params.length})`;
+        }
+
+        if (customer_id) {
+            params.push(customer_id);
+            query += ` AND p.customer_id = $${params.length}`;
+        }
+
+        if (policy_type_id) {
+            params.push(policy_type_id);
+            query += ` AND p.policy_type_id = $${params.length}`;
+        }
+
+        if (agent_id) {
+            params.push(agent_id);
+            query += ` AND p.agent_id = $${params.length}`;
+        }
+
+        if (search) {
+            params.push(`%${search}%`);
+            query += ` AND (p.policy_no ILIKE $${params.length} OR c.first_name ILIKE $${params.length} OR c.last_name ILIKE $${params.length} OR pt.policy_name ILIKE $${params.length})`;
+        }
+
+        query += " ORDER BY p.policy_id DESC";
+
+        const result = await pool.query(query, params);
 
         res.json(result.rows);
 
@@ -304,6 +372,13 @@ const createPolicy = async (req, res) => {
             payment_freq
         } = req.body;
 
+        if (!customer_id || !policy_type_id || !premium_amt || !sum_coverage) {
+            return res.status(400).json({ error: "Customer, policy type, premium, and coverage amount are required" });
+        }
+
+        // Auto-generate policy_no if not provided
+        const genPolicyNo = policy_no || `POL-${Date.now().toString().slice(-6)}`;
+
         const result = await pool.query(
             `INSERT INTO policy (
                 customer_id,
@@ -325,14 +400,14 @@ const createPolicy = async (req, res) => {
             [
                 customer_id,
                 policy_type_id,
-                start_date,
-                end_date,
+                start_date || new Date().toISOString().split("T")[0],
+                end_date || null,
                 premium_amt,
-                agent_id,
-                policy_no,
+                agent_id || null,
+                genPolicyNo,
                 sum_coverage,
-                policy_status,
-                payment_freq
+                policy_status || "ACTIVE",
+                payment_freq || "Monthly"
             ]
         );
 
@@ -342,7 +417,67 @@ const createPolicy = async (req, res) => {
         console.error("Error creating policy:", err.message);
 
         res.status(500).json({
-            error: "Failed to create policy"
+            error: "Failed to create policy: " + err.message
+        });
+    }
+};
+
+const updatePolicy = async (req, res) => {
+    try {
+        const policyId = req.params.id;
+        const {
+            policy_no,
+            start_date,
+            end_date,
+            premium_amt,
+            sum_coverage,
+            policy_status,
+            payment_freq,
+            agent_id,
+            policy_type_id
+        } = req.body;
+
+        const result = await pool.query(
+            `UPDATE policy
+             SET
+                policy_no = COALESCE($1, policy_no),
+                start_date = COALESCE($2, start_date),
+                end_date = COALESCE($3, end_date),
+                premium_amt = COALESCE($4, premium_amt),
+                sum_coverage = COALESCE($5, sum_coverage),
+                policy_status = COALESCE($6, policy_status),
+                payment_freq = COALESCE($7, payment_freq),
+                agent_id = COALESCE($8, agent_id),
+                policy_type_id = COALESCE($9, policy_type_id)
+             WHERE policy_id = $10
+             RETURNING *`,
+            [
+                policy_no || null,
+                start_date || null,
+                end_date || null,
+                premium_amt !== undefined ? premium_amt : null,
+                sum_coverage !== undefined ? sum_coverage : null,
+                policy_status || null,
+                payment_freq || null,
+                agent_id !== undefined ? (agent_id === "" ? null : agent_id) : null,
+                policy_type_id || null,
+                policyId
+            ]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                error: "Policy not found"
+            });
+        }
+
+        res.json(result.rows[0]);
+
+    } catch (err) {
+        console.error("Error updating policy:", err.message);
+
+        res.status(500).json({
+            error: "Failed to update policy"
         });
     }
 };
@@ -418,6 +553,7 @@ module.exports = {
     getPolicyBusiness,
     getPolicyNominees,
     createPolicy,
+    updatePolicy,
     updatePolicyStatus,
     deletePolicy
 };
